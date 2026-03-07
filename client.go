@@ -176,7 +176,7 @@ func (c *Client) search(q *Query, retry bool) ([]Game, error) {
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	req, err := c.newRequest("POST", baseURL+"/api/search", bytes.NewReader(body))
+	req, err := c.newRequest("POST", baseURL+"/api/finder", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (c *Client) newRequest(method, url string, body io.Reader) (*http.Request, 
 }
 
 func (c *Client) refreshToken() error {
-	url := fmt.Sprintf("%s/api/search/init?t=%d", baseURL, time.Now().UnixMilli())
+	url := fmt.Sprintf("%s/api/finder/init?t=%d", baseURL, time.Now().UnixMilli())
 
 	req, err := c.newRequest("GET", url, nil)
 	if err != nil {
