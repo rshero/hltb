@@ -26,6 +26,8 @@ var (
 type Client struct {
 	http      *http.Client
 	authToken string
+	hpKey     string
+	hpVal     string
 	mu        sync.RWMutex
 }
 
@@ -171,12 +173,17 @@ func extractPlatforms(html string) []string {
 }
 
 func (c *Client) search(q *Query, retry bool) ([]Game, error) {
-	body, err := json.Marshal(q.build())
+	c.mu.RLock()
+	hpKey := c.hpKey
+	hpVal := c.hpVal
+	c.mu.RUnlock()
+
+	body, err := json.Marshal(q.buildPayload(hpKey, hpVal))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	req, err := c.newRequest("POST", baseURL+"/api/finder", bytes.NewReader(body))
+	req, err := c.newRequest("POST", baseURL+"/api/find", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -230,11 +237,15 @@ func (c *Client) newRequest(method, url string, body io.Reader) (*http.Request, 
 	req.Header.Set("Referer", baseURL)
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", "*/*")
 
 	c.mu.RLock()
 	if c.authToken != "" {
 		req.Header.Set("x-auth-token", c.authToken)
+	}
+	if c.hpKey != "" && c.hpVal != "" {
+		req.Header.Set("x-hp-key", c.hpKey)
+		req.Header.Set("x-hp-val", c.hpVal)
 	}
 	c.mu.RUnlock()
 
@@ -242,7 +253,7 @@ func (c *Client) newRequest(method, url string, body io.Reader) (*http.Request, 
 }
 
 func (c *Client) refreshToken() error {
-	url := fmt.Sprintf("%s/api/finder/init?t=%d", baseURL, time.Now().UnixMilli())
+	url := fmt.Sprintf("%s/api/find/init?t=%d", baseURL, time.Now().UnixMilli())
 
 	req, err := c.newRequest("GET", url, nil)
 	if err != nil {
@@ -261,13 +272,23 @@ func (c *Client) refreshToken() error {
 
 	var result struct {
 		Token string `json:"token"`
+		HPKey string `json:"hpKey"`
+		HPVal string `json:"hpVal"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("failed to decode token: %w", err)
 	}
+	if result.Token == "" {
+		return errors.New("failed to decode token: empty token")
+	}
+	if result.HPKey == "" || result.HPVal == "" {
+		return errors.New("failed to decode token: missing fingerprint")
+	}
 
 	c.mu.Lock()
 	c.authToken = result.Token
+	c.hpKey = result.HPKey
+	c.hpVal = result.HPVal
 	c.mu.Unlock()
 
 	return nil

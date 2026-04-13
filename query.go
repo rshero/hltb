@@ -81,6 +81,23 @@ func (q *Query) build() seekQuery {
 	}
 }
 
+func (q *Query) buildPayload(hpKey, hpVal string) any {
+	built := q.build()
+	if hpKey == "" || hpVal == "" {
+		return built
+	}
+
+	return map[string]any{
+		"searchType":    built.SearchType,
+		"searchTerms":   built.SearchTerms,
+		"searchPage":    built.SearchPage,
+		"size":          built.Size,
+		"searchOptions": built.SearchOptions,
+		"useCache":      built.UseCache,
+		hpKey:           hpVal,
+	}
+}
+
 type seekQuery struct {
 	SearchType    string        `json:"searchType"`
 	SearchTerms   []string      `json:"searchTerms"`
